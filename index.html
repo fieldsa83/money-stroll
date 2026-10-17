@@ -235,6 +235,38 @@ for (const s of [-1,1]){
   const ear = part(new THREE.SphereGeometry(.04,12,10), SKIN, s*.142,0,-.005); ear.scale.set(.45,1,.75); head.add(ear);
 }
 const nose = part(new THREE.SphereGeometry(.026,12,10), SKIN, 0,-.005,.158); nose.scale.set(.9,1.1,1); head.add(nose);
+// dark navy Wayfarer-style glasses: upswept trapezoid frames, heavier brow line
+{
+  const NAVY = new THREE.MeshStandardMaterial({color:0x0a1226, roughness:.42, envMapIntensity:.35, side:THREE.DoubleSide});
+  const LENS = new THREE.MeshStandardMaterial({color:0x2a3b52, roughness:.05, transparent:true, opacity:.28, depthWrite:false});
+  const pts = [[-.03,-.024],[.028,-.026],[.04,-.026,.042,-.014],[.048,.022],[.05,.031,.04,.031],[-.036,.027],[-.046,.026,-.045,.016],[-.04,-.014],[-.038,-.024,-.03,-.024]];
+  function outline(path, sx, top, bot, dy){
+    const f = (x,y) => [x*sx, (y > 0 ? y*top : y*bot) + dy];
+    path.moveTo(...f(...pts[0]));
+    for (const q of pts.slice(1)){
+      if (q.length === 2) path.lineTo(...f(q[0],q[1]));
+      else path.quadraticCurveTo(...f(q[0],q[1]), ...f(q[2],q[3]));
+    }
+    return path;
+  }
+  const rim = outline(new THREE.Shape(), 1, 1, 1, 0);
+  rim.holes.push(outline(new THREE.Path(), .8, .6, .74, -.002));
+  const rimGeo = new THREE.ExtrudeGeometry(rim, {depth:.008, bevelEnabled:true, bevelThickness:.002, bevelSize:.0015, bevelSegments:2, curveSegments:8});
+  const lensGeo = new THREE.ShapeGeometry(outline(new THREE.Shape(), .82, .62, .76, -.002), 8);
+  const glasses = new THREE.Group(); glasses.position.set(0,.03,.163); head.add(glasses);
+  for (const s of [1,-1]){
+    const side = new THREE.Group(); side.position.x = s*.055; side.rotation.y = s*.12; side.scale.x = s;
+    const frame = new THREE.Mesh(rimGeo, NAVY); frame.castShadow = true;
+    const lens = new THREE.Mesh(lensGeo, LENS); lens.position.z = .004;
+    side.add(frame, lens); glasses.add(side);
+    const temple = new THREE.Mesh(new THREE.BoxGeometry(.011,.013,.165), NAVY);
+    temple.position.set(s*.118, .017, -.08); temple.rotation.y = -s*.24; temple.castShadow = true;
+    glasses.add(temple);
+  }
+  const bridge = new THREE.Mesh(new THREE.BoxGeometry(.026,.009,.008), NAVY);
+  bridge.position.set(0,.016,.004); glasses.add(bridge);
+}
+
 emitters.push(torso, torso, torso, skull, beard);
 
 function arm(s){
