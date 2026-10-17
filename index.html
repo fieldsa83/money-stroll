@@ -17,7 +17,7 @@
 }
 html,body{height:100%;overflow:hidden}
 body{background:var(--sky);color:var(--ink);font-family:var(--display)}
-#stage{position:fixed;inset:0;display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+#stage{position:fixed;inset:0;display:block;width:100%;height:100%;touch-action:none;cursor:grab}
 .pill{
   position:fixed;
   top:calc(12px + env(safe-area-inset-top,0px));
@@ -434,36 +434,51 @@ const marker = new THREE.Mesh(new THREE.RingGeometry(.16,.21,40),
 marker.rotation.x=-Math.PI/2; marker.position.y=.006; scene.add(marker);
 
 const ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
-function aimAt(e){
+// point him toward the finger: he turns to face it and walks that way
+const dirTmp = new THREE.Vector3();
+function setRay(x, y){
   const r=canvas.getBoundingClientRect();
-  ndc.set((e.clientX-r.left)/r.width*2-1, -(e.clientY-r.top)/r.height*2+1);
+  ndc.set((x-r.left)/r.width*2-1, -(y-r.top)/r.height*2+1);
   ray.setFromCamera(ndc, camera);
+}
+function aimAt(x, y){
+  setRay(x, y);
   const hit = ray.intersectObject(ground)[0];
   if (!hit) return;
-  target.copy(hit.point).setY(0);
+  dirTmp.copy(hit.point).sub(man.position).setY(0);
+  if (dirTmp.length() < .25) return;              // finger still on top of him: keep current heading
+  target.copy(man.position).addScaledVector(dirTmp.normalize(), 6).setY(0);
   if (target.length() > 13) target.setLength(13);
-  marker.position.set(target.x,.006,target.z); marker.material.opacity=.9;
 }
-// an invisible, generous hit area around him so he's easy to tap on a phone
-const hitbox = new THREE.Mesh(new THREE.CylinderGeometry(.42,.42,2,12), new THREE.MeshBasicMaterial());
+// an invisible, generous hit area around him so he's easy to grab on a phone
+const hitbox = new THREE.Mesh(new THREE.CylinderGeometry(.45,.45,2,12), new THREE.MeshBasicMaterial());
 hitbox.position.y = 1; hitbox.visible = false; man.add(hitbox);
 function shakeLoose(){
-  for (let i=0;i<45;i++) spawn('bill', 2.4);
-  for (let i=0;i<12;i++) spawn('coin', 2);
-  surge = 1.6; shed += 40;
+  for (let i=0;i<90;i++) spawn('bill', 3);
+  for (let i=0;i<24;i++) spawn('coin', 2.4);
+  surge = .8; shed += 80;
 }
+let grab = null;   // {x, y, moved} while a finger or mouse is on him
 canvas.addEventListener('pointerdown', e=>{
-  const r=canvas.getBoundingClientRect();
-  ndc.set((e.clientX-r.left)/r.width*2-1, -(e.clientY-r.top)/r.height*2+1);
-  ray.setFromCamera(ndc, camera);
-  if (ray.intersectObject(hitbox).length){ shakeLoose(); return; }   // tap him: a burst of money
-  steering=true; canvas.setPointerCapture(e.pointerId); aimAt(e);    // tap the street: steer
+  setRay(e.clientX, e.clientY);
+  if (!ray.intersectObject(hitbox).length) return;   // only he responds, not the street
+  grab = {x:e.clientX, y:e.clientY, moved:false};
+  canvas.setPointerCapture(e.pointerId);
 });
-canvas.addEventListener('pointermove', e=>{ if (steering) aimAt(e); });
-const endSteer = ()=>{ steering=false; };
-canvas.addEventListener('pointerup', endSteer); canvas.addEventListener('pointercancel', endSteer);
+canvas.addEventListener('pointermove', e=>{
+  if (!grab) return;
+  if (!grab.moved && Math.hypot(e.clientX-grab.x, e.clientY-grab.y) > 12){ grab.moved = true; steering = true; }
+  grab.x = e.clientX; grab.y = e.clientY;
+  if (grab.moved) aimAt(grab.x, grab.y);
+});
+const release = ()=>{
+  if (grab && !grab.moved) shakeLoose();   // a tap (no drag) shakes money loose
+  grab = null; steering = false;
+};
+canvas.addEventListener('pointerup', release); canvas.addEventListener('pointercancel', release);
 
 function animateMan(dt){
+  if (steering) aimAt(grab.x, grab.y);   // keep following a finger that's held still
   const dx = target.x-man.position.x, dz = target.z-man.position.z;
   if (Math.hypot(dx,dz) < .8 && !steering) newTarget();
   const want = Math.atan2(dx,dz);
