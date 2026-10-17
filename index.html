@@ -444,7 +444,21 @@ function aimAt(e){
   if (target.length() > 13) target.setLength(13);
   marker.position.set(target.x,.006,target.z); marker.material.opacity=.9;
 }
-canvas.addEventListener('pointerdown', e=>{ steering=true; canvas.setPointerCapture(e.pointerId); aimAt(e); });
+// an invisible, generous hit area around him so he's easy to tap on a phone
+const hitbox = new THREE.Mesh(new THREE.CylinderGeometry(.42,.42,2,12), new THREE.MeshBasicMaterial());
+hitbox.position.y = 1; hitbox.visible = false; man.add(hitbox);
+function shakeLoose(){
+  for (let i=0;i<45;i++) spawn('bill', 2.4);
+  for (let i=0;i<12;i++) spawn('coin', 2);
+  surge = 1.6; shed += 40;
+}
+canvas.addEventListener('pointerdown', e=>{
+  const r=canvas.getBoundingClientRect();
+  ndc.set((e.clientX-r.left)/r.width*2-1, -(e.clientY-r.top)/r.height*2+1);
+  ray.setFromCamera(ndc, camera);
+  if (ray.intersectObject(hitbox).length){ shakeLoose(); return; }   // tap him: a burst of money
+  steering=true; canvas.setPointerCapture(e.pointerId); aimAt(e);    // tap the street: steer
+});
 canvas.addEventListener('pointermove', e=>{ if (steering) aimAt(e); });
 const endSteer = ()=>{ steering=false; };
 canvas.addEventListener('pointerup', endSteer); canvas.addEventListener('pointercancel', endSteer);
@@ -482,7 +496,7 @@ function animateMan(dt){
 }
 
 /* ---------- pace ---------- */
-let rate = 20, paused = false, shed = 0;
+let rate = 20, paused = false, shed = 0, surge = 0;
 const perMin = () => 500;   // the tally climbs about 500 a minute
 if (matchMedia('(prefers-reduced-motion: reduce)').matches) rate = 8;
 
@@ -529,8 +543,9 @@ function frame(){
   if (!paused){
     t += dt;
     animateMan(dt);
-    spawnAcc += rate*dt;            while (spawnAcc >= 1){ spawn('bill'); spawnAcc -= 1; }
-    coinAcc  += rate*.15*dt;        while (coinAcc  >= 1){ spawn('coin'); coinAcc  -= 1; }
+    surge = Math.max(0, surge - dt);
+    spawnAcc += (rate + (surge > 0 ? 70 : 0))*dt;            while (spawnAcc >= 1){ spawn('bill'); spawnAcc -= 1; }
+    coinAcc  += (rate + (surge > 0 ? 70 : 0))*.15*dt;        while (coinAcc  >= 1){ spawn('coin'); coinAcc  -= 1; }
     update(dt, t);
     noteTimer -= dt; if (noteTimer <= 0){ emitNote(); noteTimer = .55 + Math.random()*.5; }
     updateNotes(dt);
