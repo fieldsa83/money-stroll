@@ -199,6 +199,19 @@ function bench(x,z,r){
 for (let i=0;i<10;i++){ const a=i/10*Math.PI*2; lamp(Math.cos(a)*15, Math.sin(a)*15); }
 for (let i=0;i<9;i++){ const a=i/9*Math.PI*2+.3; tree(Math.cos(a)*19, Math.sin(a)*19, .9+Math.random()*.5); }
 for (let i=0;i<6;i++){ const a=i/6*Math.PI*2+.15; bench(Math.cos(a)*13.5, Math.sin(a)*13.5, -a-Math.PI/2); }
+// scenery wraps around him in a 40m square, so the street never runs out
+const props = scene.children.filter(o => o.isGroup);
+const TILE = 90/40;   // one paving-texture repeat, so the ground can follow him without the pattern sliding
+function wrapWorld(){
+  for (const g of props){
+    if (g.position.x - man.position.x >  20) g.position.x -= 40;
+    if (g.position.x - man.position.x < -20) g.position.x += 40;
+    if (g.position.z - man.position.z >  20) g.position.z -= 40;
+    if (g.position.z - man.position.z < -20) g.position.z += 40;
+  }
+  ground.position.x = Math.round(man.position.x/TILE)*TILE;
+  ground.position.z = Math.round(man.position.z/TILE)*TILE;
+}
 
 /* ---------- the man ---------- */
 const SKIN=new THREE.MeshStandardMaterial({map:skinTex, roughness:.55});
@@ -237,7 +250,7 @@ for (const s of [-1,1]){
 const nose = part(new THREE.SphereGeometry(.026,12,10), SKIN, 0,-.005,.158); nose.scale.set(.9,1.1,1); head.add(nose);
 // dark navy Wayfarer-style glasses: upswept trapezoid frames, heavier brow line
 {
-  const NAVY = new THREE.MeshStandardMaterial({color:0x0a1226, roughness:.42, envMapIntensity:.35, side:THREE.DoubleSide});
+  const NAVY = new THREE.MeshStandardMaterial({color:0x050a16, roughness:.5, envMapIntensity:.2, side:THREE.DoubleSide});
   const LENS = new THREE.MeshStandardMaterial({color:0x2a3b52, roughness:.05, transparent:true, opacity:.28, depthWrite:false});
   const pts = [[-.03,-.024],[.028,-.026],[.04,-.026,.042,-.014],[.048,.022],[.05,.031,.04,.031],[-.036,.027],[-.046,.026,-.045,.016],[-.04,-.014],[-.038,-.024,-.03,-.024]];
   function outline(path, sx, top, bot, dy){
@@ -250,20 +263,20 @@ const nose = part(new THREE.SphereGeometry(.026,12,10), SKIN, 0,-.005,.158); nos
     return path;
   }
   const rim = outline(new THREE.Shape(), 1, 1, 1, 0);
-  rim.holes.push(outline(new THREE.Path(), .8, .6, .74, -.002));
-  const rimGeo = new THREE.ExtrudeGeometry(rim, {depth:.008, bevelEnabled:true, bevelThickness:.002, bevelSize:.0015, bevelSegments:2, curveSegments:8});
-  const lensGeo = new THREE.ShapeGeometry(outline(new THREE.Shape(), .82, .62, .76, -.002), 8);
+  rim.holes.push(outline(new THREE.Path(), .89, .8, .86, -.001));
+  const rimGeo = new THREE.ExtrudeGeometry(rim, {depth:.005, bevelEnabled:true, bevelThickness:.0012, bevelSize:.0008, bevelSegments:2, curveSegments:8});
+  const lensGeo = new THREE.ShapeGeometry(outline(new THREE.Shape(), .9, .81, .87, -.001), 8);
   const glasses = new THREE.Group(); glasses.position.set(0,.03,.163); head.add(glasses);
   for (const s of [1,-1]){
     const side = new THREE.Group(); side.position.x = s*.055; side.rotation.y = s*.12; side.scale.x = s;
     const frame = new THREE.Mesh(rimGeo, NAVY); frame.castShadow = true;
     const lens = new THREE.Mesh(lensGeo, LENS); lens.position.z = .004;
     side.add(frame, lens); glasses.add(side);
-    const temple = new THREE.Mesh(new THREE.BoxGeometry(.011,.013,.165), NAVY);
+    const temple = new THREE.Mesh(new THREE.BoxGeometry(.006,.008,.165), NAVY);
     temple.position.set(s*.118, .017, -.08); temple.rotation.y = -s*.24; temple.castShadow = true;
     glasses.add(temple);
   }
-  const bridge = new THREE.Mesh(new THREE.BoxGeometry(.026,.009,.008), NAVY);
+  const bridge = new THREE.Mesh(new THREE.BoxGeometry(.026,.005,.005), NAVY);
   bridge.position.set(0,.016,.004); glasses.add(bridge);
 }
 
@@ -456,9 +469,17 @@ function updateNotes(dt){
 
 /* ---------- walking and steering ---------- */
 const target = new THREE.Vector3();
-function newTarget(){ const a=Math.random()*6.28, r=2+Math.random()*9; target.set(Math.cos(a)*r,0,Math.sin(a)*r); }
+// by default he walks toward the viewer, angled to their 10 or 2 o'clock
+const TOWARD_CAM = Math.atan2(3.6, 5.2);   // matches the camera offset below
+let side = Math.random() < .5 ? -1 : 1;
+function newTarget(){
+  if (Math.random() < .35) side = -side;   // now and then he switches from one diagonal to the other
+  const a = TOWARD_CAM + side*.55 + (Math.random()-.5)*.25;
+  const d = 5 + Math.random()*5;
+  target.set(man.position.x + Math.sin(a)*d, 0, man.position.z + Math.cos(a)*d);
+}
 newTarget();
-let heading = 0, phase = 0, prevStep = 0, spawnAcc = 0, coinAcc = 0, steering = false;
+let heading = TOWARD_CAM + side*.55, phase = 0, prevStep = 0, spawnAcc = 0, coinAcc = 0, steering = false;
 const SPEED = 1.05;
 
 const marker = new THREE.Mesh(new THREE.RingGeometry(.16,.21,40),
@@ -490,36 +511,39 @@ function shakeLoose(){
   for (let i=0;i<24;i++) spawn('coin', 2.4);
   surge = .8; shed += 80;
 }
-let grab = null;   // {x, y, moved} while a finger or mouse is on him
+// drag anywhere: sideways drags spin him like a turntable, and he walks the way he faces
+let grab = null;   // {x, y, sx, sy, moved, onMan}
 canvas.addEventListener('pointerdown', e=>{
   setRay(e.clientX, e.clientY);
-  if (!ray.intersectObject(hitbox).length) return;   // only he responds, not the street
-  grab = {x:e.clientX, y:e.clientY, moved:false};
+  grab = {x:e.clientX, y:e.clientY, sx:e.clientX, sy:e.clientY, moved:false, onMan: ray.intersectObject(hitbox).length > 0};
   canvas.setPointerCapture(e.pointerId);
 });
 canvas.addEventListener('pointermove', e=>{
   if (!grab) return;
-  if (!grab.moved && Math.hypot(e.clientX-grab.x, e.clientY-grab.y) > 12){ grab.moved = true; steering = true; }
+  if (!grab.moved && Math.hypot(e.clientX-grab.sx, e.clientY-grab.sy) > 8){ grab.moved = true; steering = true; }
+  if (grab.moved) heading += (e.clientX - grab.x) * 0.014;   // about a half turn per 225px of drag
   grab.x = e.clientX; grab.y = e.clientY;
-  if (grab.moved) aimAt(grab.x, grab.y);
 });
 const release = ()=>{
-  if (grab && !grab.moved) shakeLoose();   // a tap (no drag) shakes money loose
+  if (grab && !grab.moved && grab.onMan) shakeLoose();   // tap on him: burst of money
   grab = null; steering = false;
 };
 canvas.addEventListener('pointerup', release); canvas.addEventListener('pointercancel', release);
 
 function animateMan(dt){
-  if (steering) aimAt(grab.x, grab.y);   // keep following a finger that's held still
+  if (steering){                          // while dragging, aim straight ahead of wherever he faces
+    target.set(man.position.x + Math.sin(heading)*6, 0, man.position.z + Math.cos(heading)*6);
+  }
   const dx = target.x-man.position.x, dz = target.z-man.position.z;
   if (Math.hypot(dx,dz) < .8 && !steering) newTarget();
   const want = Math.atan2(dx,dz);
   let diff = want - heading; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-  heading += diff * Math.min(1, dt*(steering ? 3.5 : 1.6));
+  if (!steering) heading += diff * Math.min(1, dt*1.6);
   man.rotation.y = heading;
   man.position.x += Math.sin(heading)*SPEED*dt;
   man.position.z += Math.cos(heading)*SPEED*dt;
   blob.position.x = man.position.x; blob.position.z = man.position.z;
+  wrapWorld();
 
   phase += dt*SPEED*5.4;
   const s = Math.sin(phase), c = Math.cos(phase);
