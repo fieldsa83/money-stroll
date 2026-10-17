@@ -238,12 +238,13 @@ const man = new THREE.Group(); scene.add(man);
 const hips = new THREE.Group(); hips.position.y = .97; man.add(hips);
 const emitters = [];
 
-const waist = part(new THREE.CylinderGeometry(.24,.22,.2,24), DENIM, 0,.02,0); waist.scale.z=.8; hips.add(waist);
-const belt = part(new THREE.CylinderGeometry(.247,.247,.045,24), BELT, 0,.1,0); belt.scale.z=.8; hips.add(belt);
-hips.add(part(new THREE.BoxGeometry(.06,.045,.02), BUCKLE, 0,.1,.2));
+// tucked-in shirt: jeans run up to the belt, shirt starts just above it, and the two share one oval so nothing pokes through
+const waist = part(new THREE.LatheGeometry([[0,-.17],[.13,-.16],[.19,-.12],[.215,-.05],[.224,.04],[.226,.135],[0,.135]].map(([r,y])=>new THREE.Vector2(r,y)),32), DENIM); waist.scale.z=.7; hips.add(waist);
+const belt = part(new THREE.CylinderGeometry(.236,.236,.046,28), BELT, 0,.12,0); belt.scale.z=.72; hips.add(belt);
+hips.add(part(new THREE.BoxGeometry(.055,.042,.014), BUCKLE, 0,.12,.172));
 const lathe = pts => new THREE.LatheGeometry(pts.map(([r,y])=>new THREE.Vector2(r,y)), 32);
 const limb = (rT, rB, len) => lathe([[0,-len-rB*.9],[rB*.75,-len-rB*.6],[rB,-len],[(rT+rB)/2*1.04,-len*.5],[rT,-len*.08],[rT*.75,rT*.55],[0,rT*.85]]);
-const torso = part(lathe([[0,-.02],[.215,0],[.232,.1],[.25,.24],[.27,.4],[.278,.52],[.262,.61],[.215,.68],[.12,.74],[0,.76]]), SHIRT);
+const torso = part(lathe([[0,.1],[.2,.1],[.21,.14],[.235,.22],[.252,.3],[.27,.4],[.278,.52],[.262,.61],[.215,.68],[.12,.74],[0,.76]]), SHIRT);
 torso.scale.set(1.12,1,.74); hips.add(torso);
 const collar = part(new THREE.TorusGeometry(.085,.024,10,24), SHIRT, 0,.7,0); collar.rotation.x=Math.PI/2; hips.add(collar);
 const neck = part(new THREE.CylinderGeometry(.068,.078,.15,16), SKIN, 0,.77,0); hips.add(neck);
