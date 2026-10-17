@@ -43,19 +43,25 @@ h1{margin:0;font-size:13px;font-weight:700;letter-spacing:-.005em}
 <script>
 (() => {
 const canvas = document.getElementById('stage');
-let lowFlag = false; try { lowFlag = localStorage.getItem('lowgfx') === '1'; } catch(e){}
-const LOW = lowFlag || matchMedia('(pointer: coarse)').matches;
-const renderer = new THREE.WebGLRenderer({canvas, antialias:!LOW, powerPreference:'default'});
-renderer.setPixelRatio(LOW ? 1 : Math.min(devicePixelRatio, 2));
+// graphics tiers: 2 = full (computers), 1 = phone, 0 = safe fallback.
+// If the graphics chip crashes, the page drops one tier and reloads.
+let saved = null; try { saved = localStorage.getItem('gfxTier'); } catch(e){}
+const TIER = saved !== null ? +saved : (matchMedia('(pointer: coarse)').matches ? 1 : 2);
+const LOW = TIER < 2;
+const pick = (t0, t1, t2) => [t0, t1, t2][TIER];
+const renderer = new THREE.WebGLRenderer({canvas, antialias: TIER >= 1, powerPreference:'default'});
+renderer.setPixelRatio(pick(1, Math.min(devicePixelRatio, 1.75), Math.min(devicePixelRatio, 2)));
 canvas.addEventListener('webglcontextlost', e => {
   e.preventDefault();
-  try { localStorage.setItem('lowgfx','1'); } catch(err){}
-  if (!lowFlag) setTimeout(() => location.reload(), 300);
+  if (TIER > 0){
+    try { localStorage.setItem('gfxTier', String(TIER - 1)); } catch(err){}
+    setTimeout(() => location.reload(), 300);
+  }
 });
-renderer.shadowMap.enabled = !LOW;
-renderer.shadowMap.type = LOW ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+renderer.shadowMap.enabled = TIER >= 1;
+renderer.shadowMap.type = TIER === 2 ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
 renderer.outputEncoding = THREE.sRGBEncoding;
-if (!LOW){ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15; }
+if (TIER >= 1){ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = pick(1, 1.1, 1.15); }
 
 const scene = new THREE.Scene();
 const HORIZON = 0xd3d9de;
@@ -94,8 +100,8 @@ if (!LOW) {
 const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
 camera.position.set(4, 3, 6);
 
-scene.add(new THREE.HemisphereLight(0xf2f5ff, 0x8a7f72, LOW ? 0.75 : 0.3));
-const sun = new THREE.DirectionalLight(0xfff0d8, LOW ? 1.05 : 1.6);
+scene.add(new THREE.HemisphereLight(0xf2f5ff, 0x8a7f72, pick(0.75, 0.75, 0.3)));
+const sun = new THREE.DirectionalLight(0xfff0d8, pick(1.05, 1.5, 1.6));
 sun.castShadow = true;
 sun.shadow.mapSize.set(LOW ? 1024 : 2048, LOW ? 1024 : 2048);
 Object.assign(sun.shadow.camera, {left:-7, right:7, top:7, bottom:-7, near:1, far:30});
@@ -108,7 +114,7 @@ function canvasTex(size, draw, repeat=1, srgb=true){
   draw(c.getContext('2d'), size);
   const t=new THREE.CanvasTexture(c);
   t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(repeat,repeat);
-  if (srgb) t.encoding=THREE.sRGBEncoding; t.anisotropy = LOW ? 1 : 8;
+  if (srgb) t.encoding=THREE.sRGBEncoding; t.anisotropy = pick(1, 4, 8);
   return t;
 }
 function speckle(g, s, n, alpha){
@@ -284,7 +290,7 @@ function cashTex(base, dark, light, num){
   g.fillText(num,60,56); g.fillText(num,452,170);
   g.font='bold 30px Georgia, serif'; g.fillText(num,452,50);
   speckle(g,512,2500,.07);
-  const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; t.anisotropy = LOW ? 1 : 8; return t;
+  const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; t.anisotropy = pick(1, 4, 8); return t;
 }
 const NOTES = [
   ['#7fa6d4','#23497a','#c3d7ee','5'],
@@ -326,7 +332,7 @@ function makePool(n, kind){
   }
   return arr;
 }
-const pools = { bill: makePool(LOW ? 350 : 700,'bill'), coin: makePool(LOW ? 80 : 160,'coin') };
+const pools = { bill: makePool(pick(350, 500, 700),'bill'), coin: makePool(pick(80, 120, 160),'coin') };
 const tmp = new THREE.Vector3();
 
 function spawn(kind, boost=1){
@@ -483,19 +489,28 @@ if (matchMedia('(prefers-reduced-motion: reduce)').matches) rate = 8;
 const tallyEl = document.getElementById('tally');
 const fmt = new Intl.NumberFormat('en-CA', {minimumFractionDigits:2, maximumFractionDigits:2});
 
-/* phone mode: swap to the cheapest lit material everywhere (no PBR, no shadows) */
+/* phone tiers: swap the realistic materials for cheaper ones.
+   Tier 1 keeps shine (Phong) and shadows from the man and props; tier 0 is flat and shadowless. */
 if (LOW){
   const swap = new Map();
   scene.traverse(o => {
     if (!o.isMesh || !o.material.isMeshStandardMaterial) return;
     const m = o.material;
-    if (!swap.has(m)) swap.set(m, new THREE.MeshLambertMaterial({
-      color:m.color, map:m.map, side:m.side, transparent:m.transparent, opacity:m.opacity,
-      emissive:m.emissive, flatShading:m.flatShading }));
+    if (!swap.has(m)){
+      const base = {color:m.color, map:m.map, side:m.side, transparent:m.transparent, opacity:m.opacity,
+                    emissive:m.emissive, flatShading:m.flatShading};
+      let n;
+      if (TIER === 0) n = new THREE.MeshLambertMaterial(base);
+      else if (m.metalness > .4) n = new THREE.MeshPhongMaterial({...base, specular:m.color.clone().multiplyScalar(.9), shininess:90});
+      else n = new THREE.MeshPhongMaterial({...base, specular:0x1a1a1a, shininess:4 + (1 - m.roughness)*40});
+      swap.set(m, n);
+    }
     o.material = swap.get(m);
-    o.castShadow = o.receiveShadow = false;
+    if (TIER === 0) o.castShadow = false;
+    o.receiveShadow = TIER === 1 && (o === ground || o.parent === scene);
   });
-  blob.material.opacity = 1;
+  if (TIER === 1) for (const k in pools) for (const b of pools[k]) b.m.traverse(o => { o.castShadow = o.receiveShadow = false; });
+  blob.material.opacity = TIER === 0 ? 1 : .8;
 }
 
 /* ---------- loop ---------- */
