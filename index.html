@@ -483,7 +483,7 @@ function animateMan(dt){
 
 /* ---------- pace ---------- */
 let rate = 20, paused = false, shed = 0;
-const perMin = () => 100;   // the tally climbs about 100 a minute
+const perMin = () => 500;   // the tally climbs about 500 a minute
 if (matchMedia('(prefers-reduced-motion: reduce)').matches) rate = 8;
 
 const tallyEl = document.getElementById('tally');
