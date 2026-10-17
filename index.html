@@ -529,7 +529,7 @@ hitbox.position.y = 1; hitbox.visible = false; man.add(hitbox);
 function shakeLoose(){
   for (let i=0;i<90;i++) spawn('bill', 3);
   for (let i=0;i<24;i++) spawn('coin', 2.4);
-  surge = .8; shed += 80;
+  surge = .8; shed += perMin();   // a tap shakes loose about a minute's worth
 }
 // drag anywhere: sideways drags spin him like a turntable, and he walks the way he faces
 let grab = null;   // {x, y, sx, sy, moved, onMan}
@@ -588,7 +588,8 @@ function animateMan(dt){
 
 /* ---------- pace ---------- */
 let rate = 20, paused = false, shed = 0, surge = 0;
-const perMin = () => 500;   // the tally climbs about 500 a minute
+// the tally runs at a $150,000/year pace, spent over 10 hours a day, 365 days a year (about 0.68 a minute)
+const perMin = () => 150000 / (365 * 10 * 60);
 if (matchMedia('(prefers-reduced-motion: reduce)').matches) rate = 8;
 
 const tallyEl = document.getElementById('tally');
