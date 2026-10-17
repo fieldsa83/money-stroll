@@ -61,17 +61,17 @@ canvas.addEventListener('webglcontextlost', e => {
 renderer.shadowMap.enabled = TIER >= 1;
 renderer.shadowMap.type = TIER === 2 ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
 renderer.outputEncoding = THREE.sRGBEncoding;
-if (TIER >= 1){ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = pick(1, 1.1, 1.15); }
+if (TIER >= 1){ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = pick(1, .98, 1.02); }
 
 const scene = new THREE.Scene();
-const HORIZON = 0xd3d9de;
-scene.fog = new THREE.Fog(HORIZON, 10, 30);
+const HORIZON = 0xbfcad4;
+scene.fog = new THREE.Fog(HORIZON, 13, 38);
 
 /* sky gradient backdrop */
 {
   const c=document.createElement('canvas'); c.width=4; c.height=256;
   const g=c.getContext('2d'), gr=g.createLinearGradient(0,0,0,256);
-  gr.addColorStop(0,'#9db8d2'); gr.addColorStop(.62,'#d3d9de'); gr.addColorStop(1,'#d3d9de');
+  gr.addColorStop(0,'#7fa3c8'); gr.addColorStop(.62,'#bfcad4'); gr.addColorStop(1,'#bfcad4');
   g.fillStyle=gr; g.fillRect(0,0,4,256);
   const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; scene.background=t;
 }
@@ -100,7 +100,7 @@ if (!LOW) {
 const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
 camera.position.set(4, 3, 6);
 
-scene.add(new THREE.HemisphereLight(0xf2f5ff, 0x8a7f72, pick(0.75, 0.75, 0.3)));
+scene.add(new THREE.HemisphereLight(0xe8eefa, 0x6f6658, pick(0.7, 0.55, 0.25)));
 const sun = new THREE.DirectionalLight(0xfff0d8, pick(1.05, 1.5, 1.6));
 sun.castShadow = true;
 sun.shadow.mapSize.set(LOW ? 1024 : 2048, LOW ? 1024 : 2048);
@@ -125,11 +125,11 @@ function speckle(g, s, n, alpha){
   }
 }
 function pavingDraw(g, s, bump){
-  g.fillStyle = bump ? '#000' : '#8f897f'; g.fillRect(0,0,s,s);
+  g.fillStyle = bump ? '#000' : '#6c665d'; g.fillRect(0,0,s,s);
   const cell=s/4;
   for (let y=0;y<4;y++) for (let x=-1;x<4;x++){
-    const off=(y%2)*cell/2, v=172+Math.random()*22|0;
-    g.fillStyle = bump ? '#fff' : `rgb(${v},${v-4},${v-11})`;
+    const off=(y%2)*cell/2, v=146+Math.random()*20|0;
+    g.fillStyle = bump ? '#fff' : `rgb(${v},${v-6},${v-15})`;
     const r=6, X=x*cell+off+3, Y=y*cell+3, W=cell-6, H=cell-6;
     g.beginPath(); g.roundRect ? g.roundRect(X,Y,W,H,r) : g.rect(X,Y,W,H); g.fill();
   }
@@ -179,7 +179,7 @@ function tree(x,z,s){
   const g = new THREE.Group();
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.08*s,.13*s,1.3*s,10), std(0x5e4636,.95));
   trunk.position.y = .65*s;
-  const leafMat = std(0x6f8f5c,.9); leafMat.flatShading = true;
+  const leafMat = std(0x4d7a36,.85); leafMat.flatShading = true;
   for (let k=0;k<4;k++){
     const crown = new THREE.Mesh(new THREE.IcosahedronGeometry((.55+Math.random()*.25)*s,1), leafMat);
     crown.position.set((Math.random()-.5)*.6*s, (1.6+Math.random()*.5)*s, (Math.random()-.5)*.6*s);
@@ -219,7 +219,7 @@ function wrapWorld(){
     if (g.position.z - man.position.z >  40) g.position.z -= 80;
     if (g.position.z - man.position.z < -40) g.position.z += 80;
     // only draw what's near: anything past 27m is already lost in the haze
-    g.visible = Math.hypot(g.position.x - man.position.x, g.position.z - man.position.z) < 27;
+    g.visible = Math.hypot(g.position.x - man.position.x, g.position.z - man.position.z) < 30;
     // and never let scenery block the view: hide anything sitting between the camera and him
     if (g.visible){
       const ax = camera.position.x, az = camera.position.z, bx = man.position.x - ax, bz = man.position.z - az;
@@ -272,7 +272,7 @@ const nose = part(new THREE.SphereGeometry(.026,12,10), SKIN, 0,-.005,.158); nos
 {
   const NAVY = new THREE.MeshStandardMaterial({color:0x02040b, roughness:.55, envMapIntensity:.12, side:THREE.DoubleSide});
   const LENS = new THREE.MeshStandardMaterial({color:0x2a3b52, roughness:.05, transparent:true, opacity:.28, depthWrite:false});
-  const pts = [[-.03,-.024],[.028,-.026],[.04,-.026,.042,-.014],[.048,.022],[.05,.031,.04,.031],[-.036,.027],[-.046,.026,-.045,.016],[-.04,-.014],[-.038,-.024,-.03,-.024]];
+  const pts = [[-.03,-.024],[.028,-.026],[.04,-.026,.042,-.014],[.048,.022],[.05,.031,.04,.031],[.004,.044,-.036,.028],[-.046,.026,-.045,.016],[-.04,-.014],[-.038,-.024,-.03,-.024]];
   function outline(path, sx, top, bot, dy){
     const f = (x,y) => [x*sx, (y > 0 ? y*top : y*bot) + dy];
     path.moveTo(...f(...pts[0]));
@@ -358,11 +358,11 @@ function cashTex(base, dark, light, num){
   const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; t.anisotropy = pick(1, 4, 8); return t;
 }
 const NOTES = [
-  ['#7fa6d4','#23497a','#c3d7ee','5'],
-  ['#ad93cb','#4e3176','#ddd0ec','10'],
-  ['#97bd88','#305a2a','#d1e5c6','20'],
-  ['#d98f88','#7d2c27','#f1cdc8','50'],
-  ['#c4a27f','#5c3d22','#e8d8c4','100'],
+  ['#4a82c4','#143868','#86b2e0','5'],
+  ['#8a5fb8','#381a60','#b394d6','10'],
+  ['#5a9c45','#1d4818','#97c785','20'],
+  ['#c9554b','#691812','#e3958c','50'],
+  ['#a6784a','#472a10','#cfa880','100'],
 ];
 const billMats = NOTES.map(n => new THREE.MeshStandardMaterial({map:cashTex(...n), side:THREE.DoubleSide, roughness:.6}));
 const BILL_MIX = [0,0,0,1,1,1,2,2,2,2,3,4,4];   // mostly 5s, 10s and 20s
