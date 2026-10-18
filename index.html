@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>The Money Stroll</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Patrick+Hand&family=JetBrains+Mono:wght@500&display=swap">
 <style>
 /* Layout: full-bleed 3D scene, one small title-and-tally pill */
 :root{
-  --sky:#d3d9de; --ink:#1b2430; --pill:rgba(250,248,244,.82); --line:rgba(27,36,48,.12);
+  --sky:#e9dfca; --ink:#1d1813; --pill:rgba(246,239,224,.92); --line:#1d1813;
   --bill:#4f7d45;
   --display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
@@ -24,10 +24,12 @@ body{background:var(--sky);color:var(--ink);font-family:var(--display)}
   left:calc(12px + env(safe-area-inset-left,0px));
   display:flex;align-items:baseline;gap:10px;
   background:var(--pill);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-  border:1px solid var(--line);border-radius:999px;padding:6px 14px;
+  border:1.5px solid var(--line);border-radius:14px 18px 15px 17px;padding:5px 14px;z-index:2;
   pointer-events:none;white-space:nowrap;
 }
-h1{margin:0;font-size:13px;font-weight:700;letter-spacing:-.005em}
+h1{margin:0;font-family:"Patrick Hand", "Comic Sans MS", var(--display);font-size:17px;font-weight:400;letter-spacing:.01em}
+#paper{position:fixed;inset:0;pointer-events:none;mix-blend-mode:multiply;opacity:.28;z-index:1;
+  box-shadow:inset 0 0 120px rgba(90,70,40,.28)}
 #tally{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13px;color:var(--bill)}
 </style>
 </head>
@@ -97,7 +99,7 @@ if (!LOW) {
   scene.environment = pmrem.fromScene(env, .03).texture;
 }
 
-const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);   // isometric
 camera.position.set(4, 3, 6);
 
 scene.add(new THREE.HemisphereLight(0xe8eefa, 0x6f6658, pick(0.7, 0.55, 0.25)));
@@ -256,13 +258,14 @@ function wrapWorld(){
     if (g.position.z - man.position.z >  40) g.position.z -= 80;
     if (g.position.z - man.position.z < -40) g.position.z += 80;
     // only draw what's near: anything past 27m is already lost in the haze
-    g.visible = Math.hypot(g.position.x - man.position.x, g.position.z - man.position.z) < 30;
+    g.visible = Math.hypot(g.position.x - man.position.x, g.position.z - man.position.z) < 18;
     // and never let scenery block the view: hide anything sitting between the camera and him
     if (g.visible){
       const ax = camera.position.x, az = camera.position.z, bx = man.position.x - ax, bz = man.position.z - az;
       const t = Math.max(0, Math.min(1, ((g.position.x-ax)*bx + (g.position.z-az)*bz) / (bx*bx + bz*bz || 1)));
       const d = Math.hypot(g.position.x - (ax + bx*t), g.position.z - (az + bz*t));
-      if (d < 1.9 && t < .92) g.visible = false;
+      const len = Math.hypot(bx, bz);
+      if (d < 1.6 && t > 1 - 4/len && t < 1) g.visible = false;   // only things just in front of him
     }
   }
   ground.position.x = Math.round(man.position.x/TILE)*TILE;
@@ -323,7 +326,7 @@ const nose = part(new THREE.SphereGeometry(.026,12,10), SKIN, 0,-.005,.158); nos
   rim.holes.push(outline(new THREE.Path(), .89, .8, .86, -.001));
   const rimGeo = new THREE.ExtrudeGeometry(rim, {depth:.005, bevelEnabled:true, bevelThickness:.0012, bevelSize:.0008, bevelSegments:2, curveSegments:8});
   const lensGeo = new THREE.ShapeGeometry(outline(new THREE.Shape(), .9, .81, .87, -.001), 8);
-  const glasses = new THREE.Group(); glasses.position.set(0,.03,.166); glasses.scale.setScalar(1.13); head.add(glasses);
+  const glasses = new THREE.Group(); glasses.name = 'glasses'; glasses.position.set(0,.03,.166); glasses.scale.setScalar(1.13); head.add(glasses);
   for (const s of [1,-1]){
     const side = new THREE.Group(); side.position.x = s*.055; side.rotation.y = s*.12; side.scale.x = s;
     const frame = new THREE.Mesh(rimGeo, NAVY); frame.castShadow = true;
@@ -392,6 +395,7 @@ function cashTex(base, dark, light, num){
   g.fillText(num,60,56); g.fillText(num,452,170);
   g.font='bold 30px Georgia, serif'; g.fillText(num,452,50);
   speckle(g,512,2500,.07);
+  g.strokeStyle='#1d1813'; g.lineWidth=7; g.strokeRect(3,3,506,218);   // inked edge
   const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; t.anisotropy = pick(1, 4, 8); return t;
 }
 const NOTES = [
@@ -527,7 +531,7 @@ function updateNotes(dt){
 /* ---------- walking and steering ---------- */
 const target = new THREE.Vector3();
 // by default he walks toward the viewer, angled to their 10 or 2 o'clock
-const TOWARD_CAM = Math.atan2(3.6, 5.2);   // matches the camera offset below
+const TOWARD_CAM = Math.atan2(10, 10);   // matches the camera offset below
 let side = Math.random() < .5 ? -1 : 1;
 function newTarget(){
   if (Math.random() < .35) side = -side;   // now and then he switches from one diagonal to the other
@@ -631,6 +635,89 @@ if (matchMedia('(prefers-reduced-motion: reduce)').matches) rate = 8;
 const tallyEl = document.getElementById('tally');
 const fmt = new Intl.NumberFormat('en-CA', {minimumFractionDigits:2, maximumFractionDigits:2});
 
+
+/* ---------- hand-inked look: cel shading, wobbly ink outlines, paper ---------- */
+const inkUniforms = { thick:{value:.02}, tick:{value:0} };
+{
+  // three-step cel ramp
+  const ramp = new THREE.DataTexture(new Uint8Array([105,105,105,255, 175,175,175,255, 255,255,255,255]), 3, 1);
+  ramp.minFilter = ramp.magFilter = THREE.NearestFilter; ramp.needsUpdate = true;
+
+  // ink paving: paper-coloured stones, wobbly hand-drawn joints, a little hatching
+  const pave = canvasTex(512, (g, s) => {
+    g.fillStyle = '#c9b996'; g.fillRect(0,0,s,s);
+    const cell = s/4, wob = () => (Math.random()-.5)*3;
+    const line = (x1,y1,x2,y2) => {
+      g.beginPath(); g.moveTo(x1+wob(), y1+wob());
+      for (let k=1;k<=4;k++){ const f=k/4; g.lineTo(x1+(x2-x1)*f+wob(), y1+(y2-y1)*f+wob()); }
+      g.lineWidth = 3.2 + Math.random()*2.2; g.stroke();
+    };
+    g.strokeStyle = 'rgba(38,30,22,.8)'; g.lineCap = 'round';
+    for (let y=0;y<4;y++){
+      line(0, y*cell, s, y*cell);
+      const off = (y%2)*cell/2;
+      for (let x=0;x<=4;x++) line(x*cell+off, y*cell, x*cell+off, (y+1)*cell);
+      for (let x=0;x<4;x++) if (Math.random() < .35){             // light hatching in some stones
+        g.save(); g.strokeStyle='rgba(60,48,36,.35)'; g.lineWidth=1.6;
+        const X = x*cell+off+cell*.55, Y = y*cell+cell*.2;
+        for (let k=0;k<4;k++){ g.beginPath(); g.moveTo(X+k*7, Y+cell*.5); g.lineTo(X+k*7+cell*.22, Y+cell*.2); g.stroke(); }
+        g.restore();
+      }
+    }
+  }, 40);
+  groundMat.map = pave; groundMat.bumpMap = null;
+
+  // swap every realistic material for a flat cel-shaded one
+  const swap = new Map();
+  scene.traverse(o => {
+    if (!o.isMesh || !o.material.isMeshStandardMaterial) return;
+    const m = o.material;
+    if (!swap.has(m)) swap.set(m, new THREE.MeshToonMaterial({
+      color:m.color, map:m.map, side:m.side, transparent:m.transparent, opacity:m.opacity,
+      emissive:m.emissive, gradientMap:ramp }));
+    o.material = swap.get(m);
+  });
+
+  // ink outlines: a back-face shell pushed out along the normals, with a slightly uneven, boiling width
+  const inkMat = new THREE.ShaderMaterial({
+    uniforms: inkUniforms, side: THREE.BackSide,
+    vertexShader: `
+      uniform float thick; uniform float tick;
+      float h(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,37.719)) + tick*1.7) * 43758.5453); }
+      void main(){
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vec3 wn = normalize(mat3(modelMatrix) * normal);
+        wp.xyz += wn * thick * (0.65 + 0.7*h(floor(position*16.0)));
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }`,
+    fragmentShader: `void main(){ gl_FragColor = vec4(0.09, 0.075, 0.06, 1.0); }`
+  });
+  const inGlasses = o => { for (let p=o; p; p=p.parent) if (p.name === 'glasses') return true; return false; };
+  const outline = root => root.traverse(o => {
+    if (!o.isMesh || !o.material.isMeshToonMaterial || o.userData.ink) return;
+    const g = o.geometry; if (!g.boundingSphere) g.computeBoundingSphere();
+    if (g.boundingSphere.radius < .03 || g.type === 'ShapeGeometry' || g.type === 'ExtrudeGeometry' || inGlasses(o)) return;
+    const shell = new THREE.Mesh(g, inkMat); shell.userData.ink = true; o.add(shell);
+  });
+  outline(man);
+  for (const p of props) outline(p);
+
+  // flat paper backdrop, no haze, no tone curve, no horizon (the camera looks down)
+  scene.background = new THREE.Color(0xd8cbb0);
+  scene.fog = null;
+  renderer.toneMapping = THREE.NoToneMapping;
+  mountains.visible = false;
+  Object.assign(sun.shadow.camera, {left:-12, right:12, top:12, bottom:-12}); sun.shadow.camera.updateProjectionMatrix();
+
+  // paper grain laid over everything
+  const grain = document.createElement('canvas'); grain.width = grain.height = 256;
+  const gg = grain.getContext('2d'); gg.fillStyle = '#fff'; gg.fillRect(0,0,256,256);
+  for (let i=0;i<14000;i++){ const v = 150 + Math.random()*105|0; gg.fillStyle = `rgba(${v},${v-8},${v-20},.5)`; gg.fillRect(Math.random()*256, Math.random()*256, 1.4, 1.4); }
+  const paper = document.createElement('div'); paper.id = 'paper';
+  paper.style.backgroundImage = `url(${grain.toDataURL()})`;
+  document.body.insertBefore(paper, document.querySelector('.pill'));
+}
+
 /* phone tiers: swap the realistic materials for cheaper ones.
    Tier 1 keeps shine (Phong) and shadows from the man and props; tier 0 is flat and shadowless. */
 if (LOW){
@@ -658,18 +745,21 @@ if (LOW){
 /* ---------- loop ---------- */
 function resize(){
   const w=innerWidth, h=innerHeight;
-  renderer.setSize(w,h,false); camera.aspect=w/h;
-  camera.fov = w < 600 ? 52 : 40; camera.updateProjectionMatrix();
+  renderer.setSize(w,h,false);
+  const half = w < h ? 3.9 : 3.2;                     // portrait phones see a bit more
+  Object.assign(camera, {top:half, bottom:-half, left:-half*w/h, right:half*w/h}); camera.updateProjectionMatrix();
+  inkUniforms.thick.value = 2.6 * 2*half / h;         // about 2.6 screen pixels of ink
 }
 addEventListener('resize', resize); resize();
 
 const clock = new THREE.Clock();
 let t = 0;
-const camOff = new THREE.Vector3(3.6, 2.6, 5.2), look = new THREE.Vector3(0,1,0);
+const camOff = new THREE.Vector3(10, 10, 10), look = new THREE.Vector3(0,1,0);   // true isometric angle
 function frame(){
   const dt = Math.min(clock.getDelta(), .05);
   if (!paused){
     t += dt;
+    inkUniforms.tick.value = Math.floor(t*5) % 3;   // lines 'boil' a little, like hand-drawn frames
     animateMan(dt);
     surge = Math.max(0, surge - dt);
     spawnAcc += (rate + (surge > 0 ? 70 : 0))*dt;            while (spawnAcc >= 1){ spawn('bill'); spawnAcc -= 1; }

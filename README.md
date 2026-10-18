@@ -5,3 +5,5 @@ A small Three.js animation: a bald, bearded man in a navy shirt and jeans stroll
 He strolls toward the viewer, angled left or right. Drag anywhere sideways to spin him and send him another way; tap him to shake loose a burst of money. Phones get a lighter graphics mode automatically.
 
 Open `index.html` in a browser, or view it on GitHub Pages.
+
+The earlier soft-3D version, with mountains on the horizon, is kept at `classic.html`.
